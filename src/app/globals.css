@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f5f8fb;
+  --panel: #ffffff;
+  --line: #d6e0ea;
+  --text: #1e293b;
+  --muted: #5b6b7d;
+  --accent: #0b7f8c;
+}
+
+html { font-size: 19px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+  line-height: 1.85;
+}
+
+.sans {
+  font-family: "Inter", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.fade-in {
+  animation: fade 0.7s ease both;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.btn {
+  border: 1px solid var(--line);
+  padding: 0.6rem 1.2rem;
+  transition: all 0.2s;
+  font-family: "Inter", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 1rem;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.4;
+}
+
+.btn {
+  background: #fff;
+}
+.btn:hover:not(:disabled) {
+  background: #e6f6f7;
+}
+body {
+  background-image: radial-gradient(ellipse at top right, #dff3f5 0%, transparent 55%),
+    radial-gradient(ellipse at bottom left, #fdf1dc 0%, transparent 50%);
+  background-attachment: fixed;
+}
