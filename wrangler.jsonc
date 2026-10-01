@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "social-work-ai-lab",
+  "name": "socialwork",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "social-work-ai-lab",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "1631aac6-4c2a-4cc9-9f27-ad4489a93102",
       "migrations_dir": "migrations"
     }
   ]
