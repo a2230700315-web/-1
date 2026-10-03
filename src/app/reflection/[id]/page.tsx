@@ -35,7 +35,7 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
   const last = r.state_trajectory[r.state_trajectory.length - 1]?.state ?? {};
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-16 space-y-14">
+    <main className="max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-16 space-y-10 md:space-y-14">
       <header className="fade-in">
         <p className="sans text-sm tracking-[0.3em] text-[var(--muted)] mb-4">ETHICAL REFLECTION</p>
         <h1 className="text-3xl font-light">{r.case_title}</h1>
@@ -71,8 +71,8 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
         <h2 className="text-xl mb-4">价值取向</h2>
         <div className="sans space-y-3">
           {r.value_profile.map((v) => (
-            <div key={v.principle} className="flex items-center gap-4 text-base">
-              <span className="w-24">{L[v.principle]}</span>
+            <div key={v.principle} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base">
+              <span className="w-24 shrink-0">{L[v.principle]}</span>
               <span className="text-[var(--accent)]">{"■".repeat(v.protected) || ""}</span>
               <span className="text-[var(--muted)]">{"□".repeat(v.sacrificed)}</span>
               <span className="text-sm text-[var(--muted)]">
@@ -98,7 +98,7 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
 
       <section>
         <h2 className="text-xl mb-4">服务对象状态的变化</h2>
-        <div className="sans text-base grid grid-cols-2 gap-x-8 gap-y-2">
+        <div className="sans text-base grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
           {Object.keys(SL).map((k) => (
             <div key={k} className="flex justify-between border-b border-[var(--line)] py-1">
               <span>{SL[k]}</span>

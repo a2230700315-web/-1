@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Landing() {
   return (
-    <main className="min-h-screen flex flex-col justify-center px-8 md:px-24 max-w-5xl">
+    <main className="min-h-screen flex flex-col justify-center px-6 md:px-24 max-w-5xl">
       <p className="sans text-sm tracking-[0.3em] text-[var(--muted)] mb-6 fade-in">SOCIAL WORK AI LAB</p>
       <h1 className="text-4xl md:text-6xl font-light leading-tight fade-in">
         社会工作伦理
@@ -18,7 +18,7 @@ export default function Landing() {
           进入模拟 →
         </Link>
       </div>
-      <p className="sans mt-24 text-sm text-[var(--muted)] max-w-xl leading-relaxed">
+      <p className="sans mt-12 md:mt-24 text-sm text-[var(--muted)] max-w-xl leading-relaxed">
         本系统全部案例均为虚构的合成数据，仅用于教学与研究。AI 输出只作为反思材料，不构成任何专业、法律或医疗判断。
       </p>
     </main>
