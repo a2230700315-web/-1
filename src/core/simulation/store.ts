@@ -1,9 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Session } from "../schemas";
 import type { D1Database } from "./d1";
+import { openSqlite } from "./sqlite";
 
 /**
- * 会话存储接口。Cloudflare 上使用 D1（绑定名 DB）；本地开发无绑定时退回进程内存。
+ * 会话存储接口。Cloudflare 用 D1，自托管用 SQLite，本地开发退回进程内存。
  * 后续换 PostgreSQL 只需新增实现，不影响 Engine。
  */
 export interface SessionStore {
@@ -19,13 +20,19 @@ const memoryStore: SessionStore = {
   set: async (s) => void map.set(s.session_id, s),
 };
 
-/** 取 D1 绑定；不在 Workers 运行时（本地 next dev / 测试）返回 undefined。 */
+/**
+ * 取数据库：Cloudflare 上用 D1 绑定；自托管服务器设置 SQLITE_PATH 后用本地 SQLite；
+ * 两者都没有（本地 next dev / 测试）返回 undefined，退回进程内存。
+ */
 export function getDB(): D1Database | undefined {
   try {
-    return (getCloudflareContext().env as { DB?: D1Database }).DB;
+    const d1 = (getCloudflareContext().env as { DB?: D1Database }).DB;
+    if (d1) return d1;
   } catch {
-    return undefined;
+    /* 不在 Workers 运行时 */
   }
+  const file = process.env.SQLITE_PATH;
+  return file ? openSqlite(file) : undefined;
 }
 
 export function getSessionStore(): SessionStore {
