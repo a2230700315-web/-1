@@ -6,9 +6,9 @@ import type { AgentState, ApproachTag, StateEffect } from "../schemas";
  */
 export const APPROACH_EFFECTS: Record<ApproachTag, StateEffect[]> = {
   professional_empathy: [
-    { key: "trust", delta: 6, reason: "专业性共情让他感到被理解" },
+    { key: "trust", delta: 6, reason: "专业性共情让对方感到被理解" },
     { key: "willingness_to_disclose", delta: 6, reason: "更愿意继续说" },
-    { key: "fear", delta: -3, reason: "环境更安全" },
+    { key: "fear", delta: -3, reason: "感到更安全" },
   ],
   coercive_questioning: [
     { key: "trust", delta: -8, reason: "被追问/施压" },

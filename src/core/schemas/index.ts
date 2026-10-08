@@ -10,7 +10,9 @@ export type PrincipleId =
   | "minimize_harm"
   | "professional_responsibility"
   | "family_relationship"
-  | "professional_boundary";
+  | "professional_boundary"
+  | "justice"
+  | "client_best_interest";
 
 export interface EthicalPrinciple {
   id: PrincipleId;
@@ -84,8 +86,24 @@ export interface DecisionNode {
   /** 节点出现前的情境叙述；可按此前分支选择不同版本，"default" 兜底 */
   narrationByBranch: Record<string, string>;
   options: DecisionOption[];
-  /** 触发前用户至少需要与服务对象交流的轮数 */
+  /** 决策点可被主动进入前，用户至少需要与服务对象交流的轮数（建议 4 以上） */
   minTurns: number;
+  /**
+   * 披露意愿阈值（0-100，默认 40）。进入决策时若服务对象的 willingness_to_disclose 低于它，
+   * 说明学生尚未与对方建立足够信任，决策将在“信息不完整”的情境下作出，
+   * 此时改用 lowDisclosureNarration / lowDisclosurePrompt（若提供）。
+   */
+  disclosureThreshold?: number;
+  lowDisclosureNarration?: string;
+  lowDisclosurePrompt?: string;
+}
+
+/** 无大模型时的离线回复：当学生的话命中 pattern（正则源码）时使用。 */
+export interface TopicReply {
+  pattern: string;
+  /** 仅当披露意愿不低于该值时才使用；否则落到下一条或通用回复 */
+  minDisclosure?: number;
+  reply: string;
 }
 
 export interface EthicsCase {
@@ -115,6 +133,16 @@ export interface EthicsCase {
   client_agent: AgentProfile;
   initial_client_state: AgentState;
   opening_line: string;
+  /** 面向本案例的 Human-in-the-loop 提示（界面顶部展示） */
+  hitl_notice: string;
+  /** 输入框上方的 4 条快捷开场（中性、不预设答案） */
+  suggested_prompts: string[];
+  /** 反思报告末尾留给学生的问题（4-5 条，结合本案例，不带正确答案） */
+  reflection_questions: string[];
+  /** 本案例特有的不确定性（3 条以上） */
+  uncertainties: string[];
+  /** 离线（无大模型）时的话题回复，可为空 */
+  topic_replies?: TopicReply[];
 }
 
 // ---------- Agent ----------
@@ -211,6 +239,10 @@ export interface ReflectionReport {
   perspectives: { stance: string; argument: string }[];
   uncertainty: string[];
   reflection_questions: string[];
+  /** 对话记录（用于导出 PDF / 提交作业） */
+  transcript: { speaker: "worker" | "client" | "system"; text: string }[];
+  client_name: string;
+  created_at: string;
   narrative?: string;
   generated_by: string;
   disclaimer: string;
@@ -229,4 +261,31 @@ export interface ResearchEvent {
   case_version: string;
   params: Record<string, unknown>;
   payload: Record<string, unknown>;
+}
+
+// ---------- Expert review ----------
+/** 专家评议维度（1-5 分，5 为最高）。评议的是“内容”，不是对学生的评分。 */
+export const REVIEW_DIMENSIONS = [
+  { key: "realism", label: "真实性", hint: "情境/人物是否贴近真实实务" },
+  { key: "professional_validity", label: "专业合理性", hint: "价值标注、后果推演是否合乎专业判断" },
+  { key: "educational_value", label: "教育价值", hint: "是否能引发有益的伦理反思" },
+  { key: "balance", label: "选项均衡性", hint: "各选项是否同样站得住脚，没有暗示标准答案" },
+  { key: "safety_bias", label: "安全与偏见", hint: "是否存在刻板印象、误导或不当内容（5 = 无问题）" },
+] as const;
+export type ReviewDimension = (typeof REVIEW_DIMENSIONS)[number]["key"];
+
+export type ReviewTargetType = "case" | "option" | "dialogue";
+
+export interface ExpertReview {
+  review_id: string;
+  created_at: string;
+  reviewer_code: string;
+  reviewer_background?: string;
+  target_type: ReviewTargetType;
+  case_id: string;
+  case_version: string;
+  /** case: "overall"；option: 选项 id；dialogue: 由评议者摘录的对话片段哈希或序号 */
+  target_ref: string;
+  ratings: Partial<Record<ReviewDimension, number>>;
+  comment?: string;
 }

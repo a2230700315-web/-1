@@ -48,12 +48,15 @@ describe("simulation flow (mock provider)", () => {
     expect(decisionReady(c, s)).toBe(false);
     await sendMessage(provider, s, "不着急，慢慢说，我在这里");
     await sendMessage(provider, s, "谢谢你愿意告诉我");
+    expect(decisionReady(c, s)).toBe(false); // 对话轮数不足时，决策不可进入
+    await sendMessage(provider, s, "你现在感觉怎么样？");
+    await sendMessage(provider, s, "我在听，你慢慢说");
     expect(s.agent.state.trust).toBeGreaterThan(c.initial_client_state.trust);
     expect(s.agent.memory.length).toBeGreaterThan(4);
     expect(decisionReady(c, s)).toBe(true);
     await decide(provider, s, "n1-b");
     expect(s.finished).toBe(false);
-    await sendMessage(provider, s, "你想怎么做？");
+    for (let i = 0; i < 3; i++) await sendMessage(provider, s, "你想怎么做？");
     await decide(provider, s, "n2-a", "希望他参与");
     expect(s.finished).toBe(true);
     expect(s.decisions).toHaveLength(2);

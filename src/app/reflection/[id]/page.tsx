@@ -12,6 +12,9 @@ interface Report {
   perspectives: { stance: string; argument: string }[];
   uncertainty: string[];
   reflection_questions: string[];
+  transcript: { speaker: "worker" | "client" | "system"; text: string }[];
+  client_name: string;
+  created_at: string;
   narrative?: string;
   generated_by: string;
   disclaimer: string;
@@ -22,10 +25,17 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
   const [data, setData] = useState<{ report: Report; principle_labels: Record<string, string>; state_labels: Record<string, string> } | null>(null);
   const [error, setError] = useState("");
 
+  const [withLog, setWithLog] = useState(true);
+  const [name, setName] = useState("");
+
   useEffect(() => {
     fetch(`/api/sessions/${id}/reflection`)
       .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setData(d)));
+      .then((d) => {
+        if (d.error) return setError(d.error);
+        setData(d);
+        document.title = `伦理反思报告-${d.report.case_title.replace(/[「」"“”]/g, "")}`;
+      });
   }, [id]);
 
   if (error) return <main className="p-12">{error}<div className="mt-6"><Link href="/cases" className="btn">返回</Link></div></main>;
@@ -35,8 +45,25 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
   const last = r.state_trajectory[r.state_trajectory.length - 1]?.state ?? {};
 
   return (
-    <main className="max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-16 space-y-10 md:space-y-14">
+    <main className="report max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-16 space-y-10 md:space-y-14">
+      <div className="no-print sans flex flex-wrap items-center gap-x-4 gap-y-2 border border-[var(--line)] bg-[var(--panel)] p-3 text-sm">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="姓名/学号（选填，仅用于这份 PDF，不会上传）" className="flex-1 min-w-[12rem] bg-[var(--bg)] border border-[var(--line)] p-2" />
+        <label className="flex items-center gap-2 text-[var(--muted)]">
+          <input type="checkbox" checked={withLog} onChange={(e) => setWithLog(e.target.checked)} />
+          附上完整对话记录
+        </label>
+        <button className="btn" onClick={() => window.print()}>
+          导出 PDF
+        </button>
+      </div>
+      <p className="no-print sans text-sm text-[var(--muted)] -mt-6">点击后在打印窗口的“目标打印机”中选择“另存为 PDF”。手机上请选择“分享 / 打印 → 存储为 PDF”。</p>
+
       <header className="fade-in">
+        {name && (
+          <p className="sans text-sm text-[var(--muted)] mb-2">
+            {name} · {new Date(r.created_at).toLocaleDateString("zh-CN")}
+          </p>
+        )}
         <p className="sans text-sm tracking-[0.3em] text-[var(--muted)] mb-4">ETHICAL REFLECTION</p>
         <h1 className="text-3xl font-light">{r.case_title}</h1>
         <p className="text-[var(--muted)] mt-3">这不是一份成绩单。它呈现的是你的选择背后，你重视什么、放下了什么。</p>
@@ -140,9 +167,29 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
         </ol>
       </section>
 
+      {withLog && (
+        <section className="log">
+          <h2 className="text-xl mb-4">附：对话记录</h2>
+          <div className="space-y-3 text-[0.95em]">
+            {r.transcript.map((m, i) =>
+              m.speaker === "system" ? (
+                <p key={i} className="italic text-[var(--muted)] border-l-2 border-[var(--accent)] pl-3">
+                  {m.text}
+                </p>
+              ) : (
+                <p key={i}>
+                  <b className="sans text-sm text-[var(--muted)]">{m.speaker === "worker" ? "社工" : r.client_name}：</b>
+                  {m.text}
+                </p>
+              ),
+            )}
+          </div>
+        </section>
+      )}
+
       <footer className="sans text-sm text-[var(--muted)] border-t border-[var(--line)] pt-6 leading-relaxed">
         {r.disclaimer}
-        <div className="mt-6">
+        <div className="mt-6 no-print">
           <Link href="/cases" className="btn">
             再试一次，做不同的选择
           </Link>

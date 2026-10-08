@@ -13,7 +13,7 @@ export default function Cases() {
         <Link
           key={c.case_id}
           href={`/simulation/${c.case_id}`}
-          className="block border border-[var(--line)] bg-[var(--panel)] p-5 md:p-8 hover:border-[var(--accent)] transition fade-in"
+          className="block mb-5 border border-[var(--line)] bg-[var(--panel)] p-5 md:p-8 hover:border-[var(--accent)] transition fade-in"
         >
           <div className="sans text-sm text-[var(--muted)] flex flex-wrap gap-x-4 gap-y-1 mb-3">
             <span>{c.domain}</span>
@@ -28,7 +28,9 @@ export default function Cases() {
           </p>
         </Link>
       ))}
-      <p className="sans text-sm text-[var(--muted)] mt-10">更多情境将在后续版本加入。</p>
+      <p className="sans text-sm text-[var(--muted)] mt-10">
+        共 {cases.length} 个合成情境。如果你是受邀的评议专家，请前往 <Link href="/expert" className="underline hover:text-[var(--accent)]">专家评议入口</Link>。
+      </p>
     </main>
   );
 }

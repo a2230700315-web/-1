@@ -60,7 +60,7 @@ export function currentNode(c: EthicsCase, s: Session): DecisionNode | undefined
   return s.finished ? undefined : c.decision_nodes[s.node_index];
 }
 
-/** 决策点是否已可触发（用户已交流足够轮数）。 */
+/** 决策点是否“可进入”（已交流足够轮数）。可进入不等于自动弹出：何时进入由学生决定。 */
 export function decisionReady(c: EthicsCase, s: Session): boolean {
   const n = currentNode(c, s);
   return !!n && s.turns_since_node >= n.minTurns;
@@ -69,6 +69,52 @@ export function decisionReady(c: EthicsCase, s: Session): boolean {
 export function nodeNarration(n: DecisionNode, s: Session): string {
   const last = s.branch_keys[s.branch_keys.length - 1];
   return n.narrationByBranch[last] ?? n.narrationByBranch.default ?? "";
+}
+
+/**
+ * 决策时的情境框架，随服务对象此刻的状态调整：
+ * 披露意愿低于阈值 = 学生尚未与对方建立足够信任，决策将在信息不完整时作出。
+ */
+export function decisionFrame(n: DecisionNode, s: Session) {
+  const threshold = n.disclosureThreshold ?? 40;
+  const low = s.agent.state.willingness_to_disclose < threshold;
+  const useLow = low && !!n.lowDisclosureNarration;
+  return {
+    low_disclosure: low,
+    narration: useLow ? n.lowDisclosureNarration! : nodeNarration(n, s),
+    prompt: low && n.lowDisclosurePrompt ? n.lowDisclosurePrompt : n.prompt,
+  };
+}
+
+/**
+ * 决策前的对话回顾：基于实际对话，由大模型概括“你目前掌握了什么、对方现在怎样”。
+ * 不新增对话中没有的事实；无模型或失败时返回 null，界面只显示规则版情境框架。
+ */
+export async function decisionContext(provider: LLMProvider, s: Session): Promise<string | null> {
+  if (!provider.generative) return null;
+  const lines = s.agent.memory
+    .filter((m) => m.speaker !== "system")
+    .slice(-16)
+    .map((m) => `${m.speaker === "worker" ? "社工" : s.agent.profile.name}：${m.text}`);
+  const events = s.agent.memory.filter((m) => m.speaker === "system").map((m) => m.text);
+  const st = s.agent.state;
+  try {
+    const t = await provider.generate(
+      "你是社会工作教学的旁白，负责在学生做伦理决策前，如实回顾到目前为止的对话。只陈述对话中已经出现的内容，不新增任何事实，不评价学生，不给出建议或倾向。",
+      [
+        events.length ? `此前发生的事：\n${events.join("\n")}` : "",
+        `最近的对话：\n${lines.join("\n")}`,
+        `对方当前状态（0-100）：信任${st.trust}，恐惧${st.fear}，披露意愿${st.willingness_to_disclose}。`,
+        "请用 2-3 句中文概括：社工此刻实际掌握了哪些信息，哪些仍不清楚，对方现在的情绪与态度如何。",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      { temperature: 0.3, maxTokens: 300 },
+    );
+    return t.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 async function classify(provider: LLMProvider, text: string, rules: ApproachTag): Promise<ApproachTag> {
@@ -96,7 +142,7 @@ export async function sendMessage(provider: LLMProvider, s: Session, text: strin
   const effects: StateEffect[] = APPROACH_EFFECTS[tag];
   s.agent.state = applyEffects(s.agent.state, effects);
 
-  const reply = await clientReply(provider, s.agent, tag, text);
+  const reply = await clientReply(provider, s.agent, tag, text, c.topic_replies);
   s.agent.memory.push({ turn: s.turn, speaker: "client", text: reply });
   s.state_history.push({ turn: s.turn, state: { ...s.agent.state } });
 
@@ -127,7 +173,7 @@ export async function decide(provider: LLMProvider, s: Session, optionId: string
     rationale: rationale?.trim() || undefined,
   });
   s.branch_keys.push(option.branchKey);
-  s.agent.memory.push({ turn: s.turn, speaker: "system", text: `社工选择：${option.label}。${option.outcomeNarration}` });
+  s.agent.memory.push({ turn: s.turn, speaker: "system", text: `社工选择了「${option.label}」。${option.outcomeNarration}` });
   s.state_history.push({ turn: s.turn, state: { ...s.agent.state } });
   s.node_index += 1;
   s.turns_since_node = 0;

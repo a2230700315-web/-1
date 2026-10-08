@@ -1,7 +1,29 @@
 import type { EthicsCase } from "../schemas";
 import { minorViolenceCase } from "./minor-violence";
+import { elderDementiaCase } from "./elder-dementia";
+import { psychMedicationCase } from "./psych-medication";
+import { suicideRiskCase } from "./suicide-risk";
+import { terminalIllnessCase } from "./terminal-illness";
+import { homelessShelterCase } from "./homeless-shelter";
+import { aidAllocationCase } from "./aid-allocation";
+import { dualRelationshipCase } from "./dual-relationship";
+import { migrantWorkerCase } from "./migrant-worker";
+import { ipvAdultCase } from "./ipv-adult";
+import { funderDataCase } from "./funder-data";
 
-const registry: EthicsCase[] = [minorViolenceCase];
+const registry: EthicsCase[] = [
+  minorViolenceCase,
+  elderDementiaCase,
+  psychMedicationCase,
+  suicideRiskCase,
+  terminalIllnessCase,
+  homelessShelterCase,
+  aidAllocationCase,
+  dualRelationshipCase,
+  migrantWorkerCase,
+  ipvAdultCase,
+  funderDataCase,
+];
 
 export function listCases(): EthicsCase[] {
   return registry;

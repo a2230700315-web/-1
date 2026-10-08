@@ -34,6 +34,7 @@ ARK_API_KEY=
 ARK_MODEL=
 SQLITE_PATH=/var/lib/socialwork/app.db
 NODE_ENV=production
+EXPERT_PASSCODE=
 ENVEOF
   chmod 600 /etc/socialwork.env
   echo ">>> 请编辑 /etc/socialwork.env 填入 ARK_API_KEY 与 ARK_MODEL，然后 systemctl restart socialwork"

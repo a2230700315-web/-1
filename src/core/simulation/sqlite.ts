@@ -35,6 +35,7 @@ export function openSqlite(file: string): D1Database {
     bind: (...values) => wrap(sql, values),
     first: async <T>() => ((db.prepare(sql).get(...params) as T | undefined) ?? null),
     run: async () => db.prepare(sql).run(...params),
+    all: async <T>() => ({ results: db.prepare(sql).all(...params) as T[] }),
   });
   g.__swSqlite = { prepare: (sql: string) => wrap(sql) };
   return g.__swSqlite;

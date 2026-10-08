@@ -13,12 +13,16 @@ interface View {
   state: State;
   state_labels: Record<string, string>;
   finished: boolean;
+  decision_gate: null | { available: boolean; turns_since_node: number; min_turns: number; low_disclosure: boolean };
   decision: null | {
     node_id: string;
     narration: string;
     prompt: string;
+    low_disclosure: boolean;
     options: { id: string; label: string; description: string }[];
   };
+  hitl_notice: string;
+  suggested_prompts: string[];
   progress: { node_index: number; total_nodes: number };
   human_in_the_loop_required: boolean;
   provider?: string;
@@ -41,7 +45,9 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [rationale, setRationale] = useState("");
-  const [dismissed, setDismissed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [recap, setRecap] = useState<string | null>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
   const [showState, setShowState] = useState(true);
   const started = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -79,15 +85,30 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
     if (!text.trim() || busy || !view) return;
     const t = text;
     setText("");
-    setDismissed(false);
     const data = await call("message", { text: t });
     if (data) setView(data);
     else setText(t);
   }
 
+  async function enterDecision() {
+    setOpen(true);
+    setRecap(null);
+    setRecapLoading(true);
+    try {
+      const r = await fetch(`/api/sessions/${view!.session_id}/context`);
+      const d = await r.json();
+      setRecap(d.recap ?? null);
+    } catch {
+      setRecap(null);
+    } finally {
+      setRecapLoading(false);
+    }
+  }
+
   async function choose(optionId: string) {
     const data = await call("decision", { option_id: optionId, rationale });
     if (data) {
+      setOpen(false);
       setResult(data.result);
       setLabels(data.principle_labels);
       setView(data);
@@ -98,7 +119,8 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
   if (error && !view) return <main className="p-12">{error}</main>;
   if (!view) return <main className="p-12 text-[var(--muted)]">正在准备情境…</main>;
 
-  const decisionOpen = view.decision && !dismissed && !result;
+  const decisionOpen = view.decision && open && !result;
+  const gate = view.decision_gate;
 
   return (
     <main className="min-h-dvh flex flex-col md:flex-row">
@@ -109,7 +131,7 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
         <h1 className="text-2xl md:text-3xl font-light mt-4 md:mt-6">{view.title}</h1>
         {view.human_in_the_loop_required && (
           <p className="sans text-sm mt-4 border border-[var(--line)] p-3 text-[var(--muted)]">
-            涉及儿童保护与人身安全。此为虚构模拟，AI 仅提供反思材料；真实情境中的判断须由具备专业责任的人在督导下作出。
+            {view.hitl_notice}
           </p>
         )}
         <p className="mt-6 md:mt-8 text-[var(--muted)] italic fade-in">{view.scene}</p>
@@ -207,6 +229,17 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
       {decisionOpen && view.decision && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6 z-30 fade-in">
           <div className="max-w-2xl w-full bg-[var(--panel)] border border-[var(--line)] p-5 md:p-8 max-h-[92dvh] overflow-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            {(recapLoading || recap) && (
+              <div className="sans text-sm border border-[var(--line)] bg-[var(--bg)] p-3 mb-4">
+                <div className="text-[var(--muted)] mb-1">到目前为止（根据你们的对话回顾，仅供参考）</div>
+                {recapLoading ? <span className="text-[var(--muted)]">正在回顾……</span> : recap}
+              </div>
+            )}
+            {view.decision.low_disclosure && (
+              <p className="sans text-sm text-[var(--muted)] mb-3">
+                提示：对方还没有把情况说完整。你可以现在就作决定，也可以先回去再聊一聊。
+              </p>
+            )}
             <p className="text-[var(--muted)] italic mb-4">{view.decision.narration}</p>
             <h3 className="text-lg md:text-xl mb-4 md:mb-6">{view.decision.prompt}</h3>
             <div className="space-y-3">
@@ -229,8 +262,8 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
             />
-            <button className="sans text-sm text-[var(--muted)] mt-4" onClick={() => setDismissed(true)}>
-              我想再和他聊一聊
+            <button className="sans text-sm text-[var(--accent)] mt-4" onClick={() => setOpen(false)}>
+              ← 回去再聊一聊
             </button>
           </div>
         </div>
@@ -241,13 +274,24 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
         <div className="fixed bottom-0 left-0 right-0 md:right-80 z-10 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent pt-6 md:pt-10 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-6 px-3 md:px-6">
           <div className="max-w-4xl mx-auto">
             {error && <p className="sans text-sm text-red-600 mb-2">{error}</p>}
-            {view.decision && dismissed && (
-              <button className="btn mb-3" onClick={() => setDismissed(false)}>
-                回到决策
-              </button>
+            {gate && (
+              <div className="sans mb-3 flex items-center justify-between gap-3 border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm">
+                {gate.available ? (
+                  <>
+                    <span className="text-[var(--muted)]">你可以继续聊，也可以在自己觉得合适的时候作出决定。</span>
+                    <button className="btn shrink-0" onClick={enterDecision}>
+                      进入决策
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[var(--muted)]">
+                    先和{view.client_name}聊聊吧，不用着急。（交流 {gate.turns_since_node}/{gate.min_turns} 轮后，可以选择进入决策）
+                  </span>
+                )}
+              </div>
             )}
             <div className="flex gap-2 mb-2 md:mb-3 overflow-x-auto md:flex-wrap pb-1 -mx-1 px-1">
-              {["不着急，你想说多少都可以。", "听起来这段时间很不容易。", "你现在感觉怎么样？", "能和我说说家里的情况吗？"].map((q) => (
+              {view.suggested_prompts.map((q) => (
                 <button key={q} className="sans text-sm shrink-0 whitespace-nowrap bg-[var(--panel)] border border-[var(--line)] px-3 py-1 text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]" onClick={() => setText(q)}>
                   {q}
                 </button>

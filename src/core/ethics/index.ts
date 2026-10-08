@@ -17,6 +17,8 @@ export const PRINCIPLES: Record<PrincipleId, EthicalPrinciple> = {
   professional_responsibility: { id: "professional_responsibility", label: "专业责任", description: "履行角色所赋予的法定与专业义务，接受督导与问责。" },
   family_relationship: { id: "family_relationship", label: "家庭关系", description: "关注介入对家庭系统与长期关系的影响。" },
   professional_boundary: { id: "professional_boundary", label: "专业边界", description: "维持清晰的专业关系，避免利益冲突与角色混淆。" },
+  justice: { id: "justice", label: "公平", description: "公正对待不同的人与群体，合理分配有限的资源与机会。" },
+  client_best_interest: { id: "client_best_interest", label: "服务对象最佳利益", description: "以服务对象的长远福祉为考量，而不仅是眼前的意愿或他人的期待。" },
 };
 
 export const DISCLAIMER =
@@ -45,23 +47,28 @@ export function analyzeOption(c: EthicsCase, option: DecisionOption): EthicsAnal
 const STANCES: { stance: string; principles: PrincipleId[]; argument: string }[] = [
   {
     stance: "保护优先视角",
-    principles: ["safety", "professional_responsibility"],
-    argument: "当存在持续、可预见的严重伤害时，保护未成年人的安全优先于其他价值；专业角色赋予了社工无法推卸的责任。",
+    principles: ["safety", "professional_responsibility", "minimize_harm"],
+    argument: "当存在严重、可预见的伤害时，防止伤害优先于其他价值；专业角色赋予社工无法推卸的责任。",
   },
   {
     stance: "自主与信任视角",
     principles: ["autonomy", "confidentiality"],
-    argument: "青少年不是被动的“被保护对象”。若他们的意愿与信任被无视，可能导致今后不再求助——短期的保护可能以长期的求助为代价。",
+    argument: "服务对象不是被动的“被保护对象”。若其意愿与信任被无视，可能导致今后不再求助——短期的保护可能以长期的求助关系为代价。",
   },
   {
-    stance: "关系与家庭系统视角",
-    principles: ["family_relationship", "minimize_harm"],
-    argument: "介入会改变整个家庭系统。需要评估介入方式是否会激化风险，或破坏孩子最重要的支持关系。",
+    stance: "关系与系统视角",
+    principles: ["family_relationship", "client_best_interest"],
+    argument: "任何介入都会改变服务对象所处的关系与系统。需要评估介入方式是否会激化风险，或破坏对其最重要的支持关系。",
+  },
+  {
+    stance: "公平与制度视角",
+    principles: ["justice", "professional_boundary"],
+    argument: "个案中的选择也是一种资源与规则的选择。需要追问：这样做对其他人公平吗？是否越过了角色与机构允许的边界？",
   },
   {
     stance: "关怀伦理视角",
-    principles: ["autonomy", "safety"],
-    argument: "关注的不是抽象规则，而是这段具体的关系：如何在诚实、陪伴与保护之间，让他不孤单地面对接下来的事。",
+    principles: ["autonomy", "safety", "client_best_interest"],
+    argument: "关注的不是抽象规则，而是这段具体的关系：如何在诚实、陪伴与保护之间，让对方不孤单地面对接下来的事。",
   },
 ];
 
@@ -114,17 +121,14 @@ export async function buildReflection(
     value_conflicts,
     perspectives,
     uncertainty: [
-      "案例信息不完整：你并不知道受伤事件的全部事实，也不知道父母的真实立场。",
+      ...c.uncertainties,
       "服务对象的反应由 AI 模拟，只是可能性之一，并非预测。",
-      "不同法域对报告义务的规定不同，请核对你所在地区的具体条文，而不要依赖本系统。",
+      "不同地区对相关义务与流程的规定不同，请核对你所在地区的具体规定，而不要依赖本系统。",
     ],
-    reflection_questions: [
-      "在做决定时，你最不愿意牺牲的价值是什么？为什么？",
-      "如果小远是你的亲人，你的选择会改变吗？这种差异说明了什么？",
-      "你的选择中，哪些是基于事实，哪些是基于你对“孩子应该怎样”的假设？",
-      "你能向小远和向督导，分别用一句话解释你的决定吗？两种解释一致吗？",
-      "如果结果比预想的更糟，你需要什么样的支持？",
-    ],
+    reflection_questions: c.reflection_questions,
+    transcript: session.agent.memory.map((m) => ({ speaker: m.speaker, text: m.text })),
+    client_name: session.agent.profile.name,
+    created_at: session.created_at,
     generated_by: "rule-based",
     disclaimer: DISCLAIMER,
   };

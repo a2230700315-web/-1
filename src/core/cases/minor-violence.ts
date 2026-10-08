@@ -43,7 +43,12 @@ export const minorViolenceCase: EthicsCase = {
   decision_nodes: [
     {
       id: "n1",
-      minTurns: 2,
+      minTurns: 4,
+      disclosureThreshold: 40,
+      lowDisclosureNarration:
+        "小远始终没有把话说完整。你只看到他袖口下露出的一小片淤青，和他一再躲闪的目光。“……你能答应我，今天说的，别告诉任何人吗？”他低声说。你对事情的全貌并不确定，却不得不决定怎么回应。",
+      lowDisclosurePrompt:
+        "小远没有明说发生了什么，但你已经有足够的担忧。他请求你保密。在信息并不完整的情况下，你现在怎么做？",
       prompt: "小远告诉你，父亲喝酒后会动手，上周留下了淤青。他反复说：“你答应我，别告诉任何人。”你现在怎么做？",
       narrationByBranch: {
         default:
@@ -138,7 +143,7 @@ export const minorViolenceCase: EthicsCase = {
     },
     {
       id: "n2",
-      minTurns: 1,
+      minTurns: 3,
       prompt: "一周过去，情况有了新的进展。接下来你如何推进？",
       narrationByBranch: {
         promised:
@@ -236,6 +241,32 @@ export const minorViolenceCase: EthicsCase = {
   synthetic: true,
   human_in_the_loop_required: true,
   opening_line: "（他低着头，手指反复摩挲着书包带。）……老师，我今天可以只是坐一会儿吗？",
+  hitl_notice:
+    "涉及儿童保护与人身安全。此为虚构模拟，AI 仅提供反思材料；真实情境中的判断须由具备专业责任的人在督导下作出。",
+  suggested_prompts: ["不着急，你想说多少都可以。", "听起来这段时间很不容易。", "你现在感觉怎么样？", "能和我说说家里的情况吗？"],
+  reflection_questions: [
+    "在做决定时，你最不愿意牺牲的价值是什么？为什么？",
+    "如果小远是你的亲人，你的选择会改变吗？这种差异说明了什么？",
+    "你的选择中，哪些是基于事实，哪些是基于你对“孩子应该怎样”的假设？",
+    "你能向小远和向督导，分别用一句话解释你的决定吗？两种解释一致吗？",
+    "如果结果比预想的更糟，你需要什么样的支持？",
+  ],
+  uncertainties: [
+    "案例信息不完整：你并不知道受伤事件的全部事实，也不知道父母的真实立场。",
+    "小远是否真的会在被告知保密限度之后继续求助，无法预知。",
+  ],
+  topic_replies: [
+    { pattern: "爸|父亲", minDisclosure: 40, reply: "（他的手指僵了一下）……我爸他……喝了酒就会不一样。平时还好。" },
+    { pattern: "爸|父亲", reply: "（他避开视线）……我爸……没什么，就是工作比较忙。" },
+    { pattern: "妈|母亲", reply: "（他轻声说）……我妈她……不太说话。我不想让她担心。" },
+    { pattern: "家里|在家|回家", minDisclosure: 35, reply: "（他停顿了一下）……有时候，回家我会有点怕。不过……也不是每天。" },
+    { pattern: "家里|在家|回家", reply: "（他耸耸肩）……就那样吧，还好。" },
+    { pattern: "伤|痕|淤青|疼|手臂|袖子", minDisclosure: 45, reply: "（他下意识拉了拉袖口）……是我自己不小心。……其实不是。" },
+    { pattern: "伤|痕|淤青|疼|手臂|袖子", reply: "（他迅速把袖子拉下来）……没什么，撞到的。" },
+    { pattern: "学校|成绩|同学|朋友|体育", reply: "（他低声说）……最近上课总是走神。同学问我怎么了，我也不知道怎么说。" },
+    { pattern: "保密|告诉别人|隐私", reply: "（他抬起头）……你们……会告诉别人吗？" },
+    { pattern: "怎么样|感觉|心情", reply: "（他想了想）……比之前好一点。至少在这里，不用装。" },
+  ],
   initial_client_state: {
     trust: 35,
     fear: 55,
