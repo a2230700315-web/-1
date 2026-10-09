@@ -74,3 +74,80 @@ describe("decision flow adapts to the conversation", () => {
     expect(buildSystemPrompt(s.agent)).toContain(node.options[0].label);
   });
 });
+
+describe("custom (free-text) decisions", () => {
+  const provider = new MockProvider();
+  const c = listCases()[0];
+
+  async function ready() {
+    const s = createSession(c.case_id);
+    const node = currentNode(c, s)!;
+    for (let i = 0; i < node.minTurns; i++) await sendMessage(provider, s, "不着急，慢慢说");
+    return { s, node };
+  }
+
+  it("accepts a self-written decision, advances the story, and marks it as unanalysed offline", async () => {
+    const { s, node } = await ready();
+    const r = await decide(provider, s, "custom", undefined, "我会先告诉他我听到了，再问他最担心什么");
+    expect(r.option.id).toBe("custom");
+    expect(r.option.protects).toEqual([]); // 离线不编造价值标注
+    expect(s.decisions[0].custom?.analysis_source).toBe("none");
+    expect(s.decisions[0].branch_key).toBe("custom");
+    expect(s.node_index).toBe(1);
+    // 第二节点在“custom”分支下仍有叙述（回退到 default）
+    const { nodeNarration } = await import("@/core/simulation/engine");
+    expect(nodeNarration(c.decision_nodes[1], s).length).toBeGreaterThan(5);
+    // 服务对象记得学生自己的决定
+    const { buildSystemPrompt } = await import("@/core/agents/client-agent");
+    expect(buildSystemPrompt(s.agent)).toContain("我会先告诉他我听到了");
+    expect(node.id).toBe("n1");
+  });
+
+  it("rejects empty or too-short custom text", async () => {
+    const { s } = await ready();
+    await expect(decide(provider, s, "custom", undefined, "  ")).rejects.toThrow();
+    await expect(decide(provider, s, "custom", undefined, "好")).rejects.toThrow();
+  });
+
+  it("uses model analysis when available, and sanitizes it", async () => {
+    const fake = {
+      ...provider,
+      generative: true,
+      info: { name: "fake", model: "f", version: "1" },
+      structuredOutput: async () => ({
+        label: "先倾听再商量",
+        protects: ["autonomy", "bogus", "autonomy"],
+        sacrifices: ["safety", "autonomy"],
+        consequences: ["短期更愿意说", "长期不确定"],
+        outcome: "对方可能会多说一些。",
+        effects: [
+          { key: "trust", delta: 99, reason: "被倾听" },
+          { key: "nonsense", delta: 5, reason: "x" },
+          { key: "fear", delta: 0, reason: "零无效" },
+        ],
+      }),
+      generate: async () => "",
+      chat: async () => "（他点了点头）",
+    } as unknown as MockProvider;
+    const { s } = await ready();
+    const before = s.agent.state.trust;
+    const r = await decide(fake, s, "custom", undefined, "先听他说完，再一起商量");
+    expect(r.option.protects).toEqual(["autonomy"]);
+    expect(r.option.sacrifices).toEqual(["safety"]); // 与 protects 重复的被剔除
+    expect(r.option.effects).toHaveLength(1); // 非法 key、零值被过滤
+    expect(r.option.effects[0].delta).toBe(15); // 夹在 ±15
+    expect(s.agent.state.trust).toBeGreaterThan(before);
+    expect(s.decisions[0].custom?.analysis_source).toBe("ai");
+    const rep = await buildReflection(provider, c, s);
+    expect(rep.path[0].custom).toBe(true);
+    expect(rep.path[0].chosen).toContain("自拟");
+  });
+
+  it("falls back to unanalysed when the model output is unusable", async () => {
+    const bad = { ...provider, generative: true, info: provider.info, structuredOutput: async () => ({ protects: [], sacrifices: [] }), generate: async () => "", chat: async () => "" } as unknown as MockProvider;
+    const { s } = await ready();
+    const r = await decide(bad, s, "custom", undefined, "我自己想的办法");
+    expect(r.option.protects).toEqual([]);
+    expect(s.decisions[0].custom?.analysis_source).toBe("none");
+  });
+});

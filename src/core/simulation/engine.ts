@@ -2,10 +2,10 @@ import { randomUUID } from "crypto";
 import { CLIENT_PROMPT_VERSION, clientReply } from "../agents/client-agent";
 import { APPROACH_EFFECTS, applyEffects, classifyApproachByRules } from "../agents/state";
 import { getCase } from "../cases";
-import { analyzeOption } from "../ethics";
+import { analyzeOption, PRINCIPLES } from "../ethics";
 import type { LLMProvider } from "../llm";
 import { logEvent } from "../research/log";
-import type { ApproachTag, DecisionNode, EthicsCase, ResearchEvent, Session, StateEffect } from "../schemas";
+import type { ApproachTag, DecisionNode, DecisionOption, EthicsCase, PrincipleId, ResearchEvent, Session, StateEffect, StateKey } from "../schemas";
 
 const APPROACH_TAGS: ApproachTag[] = [
   "professional_empathy",
@@ -151,12 +151,77 @@ export async function sendMessage(provider: LLMProvider, s: Session, text: strin
   return { reply, tag, effects };
 }
 
-export async function decide(provider: LLMProvider, s: Session, optionId: string, rationale?: string) {
+const STATE_KEYS: StateKey[] = ["trust", "fear", "anger", "willingness_to_disclose", "risk_level", "dependency", "relationship_quality"];
+
+/**
+ * 学生自拟决策的分析：由大模型估计“保护/牺牲了什么价值、可能后果、对服务对象状态的影响”。
+ * 这是 AI 的估计，不是专家标注，界面会明确标示；无模型或失败时不做价值判断，只如实记录。
+ */
+async function analyzeCustom(provider: LLMProvider, c: EthicsCase, node: DecisionNode, s: Session, text: string): Promise<DecisionOption> {
+  const none: DecisionOption = {
+    id: "custom",
+    label: text.length > 24 ? text.slice(0, 24) + "…" : text,
+    description: text,
+    protects: [],
+    sacrifices: [],
+    consequences: ["这是你自拟的做法，系统没有对它做价值分析。建议在反思与督导中，自己梳理它保护了什么、放下了什么。"],
+    effects: [],
+    outcomeNarration: "你按自己的想法行动了。接下来的发展取决于对方如何回应，结果尚不确定。",
+    branchKey: "custom",
+  };
+  if (!provider.generative) return none;
+  const ids = Object.keys(PRINCIPLES);
+  try {
+    const r = await provider.structuredOutput<{
+      label?: string;
+      protects?: string[];
+      sacrifices?: string[];
+      consequences?: string[];
+      outcome?: string;
+      effects?: { key?: string; delta?: number; reason?: string }[];
+    }>(
+      "你是社会工作伦理教学的分析助手。学生在模拟中写下了自己的做法。请客观分析它保护了哪些价值、放下了哪些价值。不评判对错，不给出更好的建议，不要新增案例里没有的关键事实，只说“可能”的发展并保留不确定性。",
+      [
+        `案例：${c.title}（${c.domain}）`,
+        `情境：${node.prompt}`,
+        `服务对象：${s.agent.profile.name}。当前状态（0-100）：信任${s.agent.state.trust}，恐惧${s.agent.state.fear}，披露意愿${s.agent.state.willingness_to_disclose}。`,
+        `学生的做法：「${text}」`,
+        `可用的价值 id：${ids.join("、")}（含义：${Object.values(PRINCIPLES).map((p) => `${p.id}=${p.label}`).join("；")}）`,
+      ].join("\n"),
+      '{"label":"不超过20字的概括","protects":["价值id，1-3个"],"sacrifices":["价值id，1-3个，且与protects不重复"],"consequences":["3条可能的后果，含短期/长期/不确定"],"outcome":"2句话描述服务对象可能的反应与情境变化，用“可能”口吻","effects":[{"key":"trust|fear|anger|willingness_to_disclose|risk_level|dependency|relationship_quality","delta":-15到15的非零整数,"reason":"为什么会这样"}]}',
+      { temperature: 0.3, maxTokens: 700 },
+    );
+    const valid = (a?: string[]) => [...new Set((a ?? []).filter((x) => ids.includes(x)))].slice(0, 3) as PrincipleId[];
+    const protects = valid(r.protects);
+    const sacrifices = valid(r.sacrifices).filter((p) => !protects.includes(p));
+    const consequences = (r.consequences ?? []).filter((x) => typeof x === "string" && x.trim()).slice(0, 4);
+    if (!protects.length || !sacrifices.length || consequences.length < 2) return none;
+    const effects = (r.effects ?? [])
+      .filter((e) => STATE_KEYS.includes(e.key as StateKey) && Number.isInteger(e.delta) && e.delta !== 0 && typeof e.reason === "string" && e.reason.trim())
+      .slice(0, 4)
+      .map((e) => ({ key: e.key as StateKey, delta: Math.max(-15, Math.min(15, e.delta as number)), reason: `（AI 估计）${e.reason}` }));
+    return {
+      ...none,
+      label: (r.label && r.label.trim().slice(0, 24)) || none.label,
+      protects,
+      sacrifices,
+      consequences,
+      effects,
+      outcomeNarration: (r.outcome && r.outcome.trim()) || none.outcomeNarration,
+    };
+  } catch {
+    return none;
+  }
+}
+
+export async function decide(provider: LLMProvider, s: Session, optionId: string, rationale?: string, customText?: string) {
   const c = getCase(s.case_id)!;
   const node = currentNode(c, s);
   if (!node) throw new Error("no active decision");
   if (!decisionReady(c, s)) throw new Error("decision not ready");
-  const option = node.options.find((o) => o.id === optionId);
+  const custom = customText?.trim();
+  if (optionId === "custom" && (!custom || custom.length < 4)) throw new Error("请至少写几个字，说明你准备怎么做");
+  const option = optionId === "custom" ? await analyzeCustom(provider, c, node, s, custom!.slice(0, 500)) : node.options.find((o) => o.id === optionId);
   if (!option) throw new Error("option not found");
 
   const before = { ...s.agent.state };
@@ -171,14 +236,26 @@ export async function decide(provider: LLMProvider, s: Session, optionId: string
     state_before: before,
     state_after: { ...s.agent.state },
     rationale: rationale?.trim() || undefined,
+    custom:
+      optionId === "custom"
+        ? {
+            text: custom!.slice(0, 500),
+            label: option.label,
+            protects: option.protects,
+            sacrifices: option.sacrifices,
+            consequences: option.consequences,
+            outcome: option.outcomeNarration,
+            analysis_source: option.protects.length ? "ai" : "none",
+          }
+        : undefined,
   });
   s.branch_keys.push(option.branchKey);
-  s.agent.memory.push({ turn: s.turn, speaker: "system", text: `社工选择了「${option.label}」。${option.outcomeNarration}` });
+  s.agent.memory.push({ turn: s.turn, speaker: "system", text: `社工${optionId === "custom" ? `自己决定：${custom}` : `选择了「${option.label}」`}。${option.outcomeNarration}` });
   s.state_history.push({ turn: s.turn, state: { ...s.agent.state } });
   s.node_index += 1;
   s.turns_since_node = 0;
   if (s.node_index >= c.decision_nodes.length) s.finished = true;
 
-  await logEvent(meta(provider, c, s, "decision", { node_id: node.id, option_id: option.id, rationale, state_before: before, state_after: s.agent.state }));
+  await logEvent(meta(provider, c, s, "decision", { node_id: node.id, option_id: option.id, custom_text: custom, rationale, state_before: before, state_after: s.agent.state }));
   return { option, analysis: analyzeOption(c, option) };
 }

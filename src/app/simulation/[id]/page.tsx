@@ -34,6 +34,8 @@ interface Result {
   sacrifices: string[];
   consequences: string[];
   value_conflicts: { a: string; b: string; note: string }[];
+  custom?: boolean;
+  analyzed?: boolean;
 }
 
 export default function Simulation({ params }: { params: Promise<{ id: string }> }) {
@@ -45,6 +47,7 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [rationale, setRationale] = useState("");
+  const [customText, setCustomText] = useState("");
   const [open, setOpen] = useState(false);
   const [recap, setRecap] = useState<string | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
@@ -106,13 +109,14 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
   }
 
   async function choose(optionId: string) {
-    const data = await call("decision", { option_id: optionId, rationale });
+    const data = await call("decision", { option_id: optionId, rationale, custom_text: optionId === "custom" ? customText : undefined });
     if (data) {
       setOpen(false);
       setResult(data.result);
       setLabels(data.principle_labels);
       setView(data);
       setRationale("");
+      setCustomText("");
     }
   }
 
@@ -153,7 +157,14 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
 
           {result && (
             <div className="border border-[var(--line)] bg-[var(--panel)] p-4 md:p-6 fade-in sans text-base space-y-4">
-              <div className="text-[var(--muted)]">你的选择：{result.chosen}</div>
+              <div className="text-[var(--muted)]">{result.custom ? "你自己的决定：" : "你的选择："}{result.chosen}</div>
+              {result.custom && (
+                <div className="text-sm border border-[var(--line)] bg-[var(--bg)] p-2 text-[var(--muted)]">
+                  {result.analyzed
+                    ? "以下价值与后果分析由 AI 估计，未经专家审定，只是一种可能的看法，请带着质疑去读。"
+                    : "这是你自拟的做法，系统没有做价值分析（当前没有可用的大模型，或分析未成功）。建议自己梳理它保护了什么、放下了什么。"}
+                </div>
+              )}
               <div>
                 <span className="text-[var(--muted)]">保护了：</span>
                 {result.protects.map((p) => labels[p]).join("、") || "—"}
@@ -255,8 +266,25 @@ export default function Simulation({ params }: { params: Promise<{ id: string }>
                 </button>
               ))}
             </div>
+            <div className="sans mt-5 border-t border-[var(--line)] pt-5">
+              <div className="text-base mb-1">以上都不是我想做的？写下你自己的做法</div>
+              <p className="text-sm text-[var(--muted)] mb-2">
+                用你自己的话说清楚你准备怎么做、对谁说什么。系统会估计它保护与放下了什么价值（AI 估计，仅供反思，未经专家审定）。
+              </p>
+              <textarea
+                className="w-full bg-[var(--panel)] border border-[var(--line)] p-3 text-base focus:outline-none focus:border-[var(--accent)]"
+                rows={3}
+                maxLength={500}
+                placeholder="例如：我会先告诉他我听到了，并问他最担心的是什么，再一起想接下来怎么办……"
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+              />
+              <button className="btn mt-2" disabled={busy || customText.trim().length < 4} onClick={() => choose("custom")}>
+                {busy ? "正在分析……" : "提交我自己的决定"}
+              </button>
+            </div>
             <textarea
-              className="sans w-full mt-6 bg-transparent border border-[var(--line)] p-3 text-base"
+              className="sans w-full mt-5 bg-transparent border border-[var(--line)] p-3 text-base"
               rows={2}
               placeholder="（可选）写下你做这个选择的理由，它会出现在最终反思里"
               value={rationale}

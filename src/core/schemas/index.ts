@@ -205,6 +205,16 @@ export interface DecisionRecord {
   state_before: AgentState;
   state_after: AgentState;
   rationale?: string;
+  /** 学生自拟的决策（option_id 为 "custom"）。价值标注为 AI 估计，未经专家审定。 */
+  custom?: {
+    text: string;
+    label: string;
+    protects: PrincipleId[];
+    sacrifices: PrincipleId[];
+    consequences: string[];
+    outcome: string;
+    analysis_source: "ai" | "none";
+  };
 }
 
 export interface Session {
@@ -232,6 +242,8 @@ export interface ReflectionReport {
     sacrifices: PrincipleId[];
     consequences: string[];
     rationale?: string;
+    custom?: boolean;
+    analysis_source?: "ai" | "none";
   }[];
   value_profile: { principle: PrincipleId; protected: number; sacrificed: number }[];
   state_trajectory: { turn: number; state: AgentState }[];

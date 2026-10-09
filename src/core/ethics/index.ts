@@ -81,6 +81,18 @@ export async function buildReflection(
 ): Promise<ReflectionReport> {
   const path = session.decisions.map((d) => {
     const node = c.decision_nodes.find((n) => n.id === d.node_id)!;
+    if (d.custom) {
+      return {
+        node_prompt: node.prompt,
+        chosen: `（自拟）${d.custom.text}`,
+        protects: d.custom.protects,
+        sacrifices: d.custom.sacrifices,
+        consequences: d.custom.consequences,
+        rationale: rationales[d.node_id] ?? d.rationale,
+        custom: true,
+        analysis_source: d.custom.analysis_source,
+      };
+    }
     const opt = node.options.find((o) => o.id === d.option_id)!;
     return {
       node_prompt: node.prompt,

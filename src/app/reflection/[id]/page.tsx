@@ -5,7 +5,7 @@ import { use, useEffect, useState } from "react";
 
 interface Report {
   case_title: string;
-  path: { node_prompt: string; chosen: string; protects: string[]; sacrifices: string[]; consequences: string[]; rationale?: string }[];
+  path: { node_prompt: string; chosen: string; protects: string[]; sacrifices: string[]; consequences: string[]; rationale?: string; custom?: boolean; analysis_source?: "ai" | "none" }[];
   value_profile: { principle: string; protected: number; sacrificed: number }[];
   state_trajectory: { turn: number; state: Record<string, number> }[];
   value_conflicts: { a: string; b: string; note: string }[];
@@ -88,6 +88,11 @@ export default function Reflection({ params }: { params: Promise<{ id: string }>
                 <span className="text-[var(--muted)]">保护：</span>{p.protects.map((x) => L[x]).join("、") || "—"}
                 <span className="text-[var(--muted)] ml-4">代价：</span>{p.sacrifices.map((x) => L[x]).join("、") || "—"}
               </div>
+              {p.custom && (
+                <div className="text-sm text-[var(--muted)] mt-1">
+                  {p.analysis_source === "ai" ? "（自拟决策：价值标注为 AI 估计，未经专家审定）" : "（自拟决策：未做价值分析，请自行梳理）"}
+                </div>
+              )}
               {p.rationale && <div className="text-base mt-2 italic">你的理由：「{p.rationale}」</div>}
             </li>
           ))}
